@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import com.tudoo.app.R
 import com.tudoo.app.data.Task
+import com.tudoo.app.reminder.ReminderDebug
 import com.tudoo.app.reminder.ReminderNotifications
 import com.tudoo.app.reminder.ReminderScheduler
 
@@ -85,6 +86,7 @@ fun SettingsScreen() {
         NotificationManagerCompat.from(context).areNotificationsEnabled()
     }
     val exactOn = remember(refresh) { AlarmDiagnostics.canScheduleExact(context) }
+    val debugText = remember(refresh) { ReminderDebug.read(context) }
 
     Column(
         modifier = Modifier
@@ -115,6 +117,11 @@ fun SettingsScreen() {
         )
         Text(
             text = "Alarm presisi: " + if (exactOn) "AKTIF ✅" else "MATI ❌ (alarm bisa telat)",
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        Text(
+            text = debugText,
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onBackground
         )
 
@@ -165,8 +172,10 @@ fun SettingsScreen() {
         Button(
             onClick = {
                 val now = System.currentTimeMillis()
-                ReminderNotifications.show(context, Task(title = "Tes Dodo", deadline = now), now)
-                info = "Notifikasi tes dikirim sekarang. Muncul?"
+                val hasil = ReminderNotifications.show(
+                    context, Task(title = "Tes Dodo", deadline = now), now
+                )
+                info = "Hasil: $hasil"
             },
             modifier = Modifier.fillMaxWidth()
         ) { Text("Tes notifikasi sekarang") }
@@ -174,7 +183,7 @@ fun SettingsScreen() {
         Button(
             onClick = {
                 AlarmDiagnostics.scheduleTest(context, 60_000L)
-                info = "Alarm tes dijadwalkan 1 menit lagi. Keluar dari aplikasi dan tunggu."
+                info = "Alarm tes dijadwalkan 1 menit lagi. Tekan Home (jangan swipe tutup), tunggu 3 menit, lalu buka lagi dan tekan Segarkan status."
             },
             modifier = Modifier.fillMaxWidth()
         ) { Text("Tes alarm 1 menit lagi") }
