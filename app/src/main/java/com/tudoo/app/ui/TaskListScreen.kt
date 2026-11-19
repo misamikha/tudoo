@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tudoo.app.R
 import com.tudoo.app.data.Task
+import com.tudoo.app.data.reminderTimes
 
 @Composable
 fun TaskListScreen(
@@ -226,12 +227,29 @@ private fun TaskCard(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                 }
+
+                val reminders = task.reminderTimes()
                 Text(
-                    text = "Pengingat: " +
-                        (task.reminderTime?.let { formatDateTime(it) } ?: "tidak ada"),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface
+                    text = "Pengingat",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
                 )
+                if (reminders.isEmpty()) {
+                    Text(
+                        text = "Tidak ada pengingat",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                } else {
+                    reminders.forEach { time ->
+                        Text(
+                            text = formatDateTime(time),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = onEdit) { Text("Edit") }
