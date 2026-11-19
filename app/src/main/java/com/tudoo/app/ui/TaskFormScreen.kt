@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+
 package com.tudoo.app.ui
 
 import androidx.compose.foundation.layout.Arrangement
@@ -23,7 +25,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TimeInput
+import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
@@ -33,9 +35,12 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.tudoo.app.data.Task
+import com.tudoo.app.data.reminderTimes
+import com.tudoo.app.data.toReminderString
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -45,47 +50,86 @@ import java.util.TimeZone
 private const val HOUR_MS = 3_600_000L
 private const val DAY_MS = 86_400_000L
 
-fun formatDateTime(millis: Long): String {
-    val format = SimpleDateFormat("EEE, d MMM yyyy HH:mm", Locale("id", "ID"))
-    return format.format(Date(millis))
+private val localeId = Locale("id", "ID")
+
+fun formatDateTime(millis: Long): String =
+    SimpleDateFormat("EEE, d MMM yyyy HH:mm", localeId).format(Date(millis))
+
+private fun formatDate(millis: Long): String =
+    SimpleDateFormat("EEE, d MMM yyyy", localeId).format(Date(millis))
+
+private fun formatTime(millis: Long): String =
+    SimpleDateFormat("HH:mm", localeId).format(Date(millis))
+
+private fun utcMidnightOf(local: Long): Long {
+    val c = Calendar.getInstance().apply { timeInMillis = local }
+    val u = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+    u.clear()
+    u.set(c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH))
+    return u.timeInMillis
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+private fun withDate(base: Long, utcDate: Long): Long {
+    val u = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+    u.timeInMillis = utcDate
+    val c = Calendar.getInstance()
+    c.timeInMillis = base
+    c.set(u.get(Calendar.YEAR), u.get(Calendar.MONTH), u.get(Calendar.DAY_OF_MONTH))
+    return c.timeInMillis
+}
+
+private fun withTime(base: Long, hour: Int, minute: Int): Long {
+    val c = Calendar.getInstance()
+    c.timeInMillis = base
+    c.set(Calendar.HOUR_OF_DAY, hour)
+    c.set(Calendar.MINUTE, minute)
+    c.set(Calendar.SECOND, 0)
+    c.set(Calendar.MILLISECOND, 0)
+    return c.timeInMillis
+}
+
 @Composable
-private fun DateTimeField(
+private fun DateTimeRow(
     label: String,
     value: Long,
     onValueChange: (Long) -> Unit
 ) {
     var showDate by remember { mutableStateOf(false) }
     var showTime by remember { mutableStateOf(false) }
-    var pickedDate by remember { mutableLongStateOf(0L) }
 
     Text(
         text = label,
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.onBackground
     )
-    OutlinedButton(
-        onClick = { showDate = true },
-        modifier = Modifier.fillMaxWidth()
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text(formatDateTime(value))
+        OutlinedButton(
+            onClick = { showDate = true },
+            modifier = Modifier.weight(1.5f)
+        ) { Text(formatDate(value)) }
+        OutlinedButton(
+            onClick = { showTime = true },
+            modifier = Modifier.weight(1f)
+        ) { Text(formatTime(value)) }
     }
 
     if (showDate) {
-        val dateState = rememberDatePickerState()
+        val dateState = rememberDatePickerState(
+            initialSelectedDateMillis = utcMidnightOf(value)
+        )
         DatePickerDialog(
             onDismissRequest = { showDate = false },
             confirmButton = {
                 TextButton(onClick = {
                     val selected = dateState.selectedDateMillis
-                    showDate = false
                     if (selected != null) {
-                        pickedDate = selected
-                        showTime = true
+                        onValueChange(withDate(value, selected))
                     }
-                }) { Text("Lanjut pilih jam") }
+                    showDate = false
+                }) { Text("OK") }
             },
             dismissButton = {
                 TextButton(onClick = { showDate = false }) { Text("Batal") }
@@ -96,31 +140,20 @@ private fun DateTimeField(
     }
 
     if (showTime) {
-        val now = Calendar.getInstance()
+        val c = Calendar.getInstance()
+        c.timeInMillis = value
         val timeState = rememberTimePickerState(
-            initialHour = now.get(Calendar.HOUR_OF_DAY),
-            initialMinute = now.get(Calendar.MINUTE),
+            initialHour = c.get(Calendar.HOUR_OF_DAY),
+            initialMinute = c.get(Calendar.MINUTE),
             is24Hour = true
         )
         AlertDialog(
             onDismissRequest = { showTime = false },
             title = { Text("Pilih jam") },
-            text = { TimeInput(state = timeState) },
+            text = { TimePicker(state = timeState) },
             confirmButton = {
                 TextButton(onClick = {
-                    val utc = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
-                    utc.timeInMillis = pickedDate
-                    val local = Calendar.getInstance()
-                    local.set(
-                        utc.get(Calendar.YEAR),
-                        utc.get(Calendar.MONTH),
-                        utc.get(Calendar.DAY_OF_MONTH),
-                        timeState.hour,
-                        timeState.minute,
-                        0
-                    )
-                    local.set(Calendar.MILLISECOND, 0)
-                    onValueChange(local.timeInMillis)
+                    onValueChange(withTime(value, timeState.hour, timeState.minute))
                     showTime = false
                 }) { Text("OK") }
             },
@@ -131,7 +164,6 @@ private fun DateTimeField(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TaskFormScreen(
     taskId: Long,
@@ -144,8 +176,15 @@ fun TaskFormScreen(
     var teacher by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
     var deadline by remember { mutableLongStateOf(System.currentTimeMillis() + DAY_MS) }
-    var reminderMode by remember { mutableStateOf("none") }
-    var manualReminder by remember { mutableLongStateOf(System.currentTimeMillis() + HOUR_MS) }
+    var quickSelected by remember { mutableStateOf(setOf<Long>()) }
+    var manualList by remember { mutableStateOf(listOf<Long>()) }
+    var pendingManual by remember { mutableLongStateOf(System.currentTimeMillis() + HOUR_MS) }
+
+    val quickOptions = listOf(
+        HOUR_MS to "1 jam sebelum",
+        3 * HOUR_MS to "3 jam sebelum",
+        DAY_MS to "1 hari sebelum"
+    )
 
     LaunchedEffect(taskId) {
         if (taskId != 0L) {
@@ -157,10 +196,18 @@ fun TaskFormScreen(
                 teacher = t.teacher
                 notes = t.notes
                 deadline = t.deadline
-                if (t.reminderTime != null) {
-                    reminderMode = "manual"
-                    manualReminder = t.reminderTime
+                val quick = mutableSetOf<Long>()
+                val manual = mutableListOf<Long>()
+                t.reminderTimes().forEach { time ->
+                    val offset = t.deadline - time
+                    if (quickOptions.any { it.first == offset }) {
+                        quick.add(offset)
+                    } else {
+                        manual.add(time)
+                    }
                 }
+                quickSelected = quick
+                manualList = manual
             }
         }
     }
@@ -207,44 +254,66 @@ fun TaskFormScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
-        DateTimeField(
+        DateTimeRow(
             label = "Deadline",
             value = deadline,
             onValueChange = { deadline = it }
         )
 
         Text(
-            text = "Pengingat",
+            text = "Pengingat (boleh lebih dari satu)",
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onBackground
-        )
-        val options = listOf(
-            "none" to "Tanpa pengingat",
-            "1h" to "1 jam sebelum",
-            "3h" to "3 jam sebelum",
-            "1d" to "1 hari sebelum",
-            "manual" to "Atur manual"
         )
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            options.forEach { (mode, text) ->
+            quickOptions.forEach { (offset, text) ->
                 FilterChip(
-                    selected = reminderMode == mode,
-                    onClick = { reminderMode = mode },
+                    selected = offset in quickSelected,
+                    onClick = {
+                        quickSelected = if (offset in quickSelected) {
+                            quickSelected - offset
+                        } else {
+                            quickSelected + offset
+                        }
+                    },
                     label = { Text(text) }
                 )
             }
         }
 
-        if (reminderMode == "manual") {
-            DateTimeField(
-                label = "Waktu pengingat",
-                value = manualReminder,
-                onValueChange = { manualReminder = it }
-            )
+        manualList.forEach { time ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "Pengingat: " + formatDateTime(time),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                TextButton(onClick = { manualList = manualList - time }) {
+                    Text("Hapus")
+                }
+            }
         }
+
+        DateTimeRow(
+            label = "Tambah pengingat manual",
+            value = pendingManual,
+            onValueChange = { pendingManual = it }
+        )
+        OutlinedButton(
+            onClick = {
+                if (pendingManual !in manualList) {
+                    manualList = manualList + pendingManual
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("+ Tambah pengingat ini") }
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -259,13 +328,8 @@ fun TaskFormScreen(
 
             Button(
                 onClick = {
-                    val reminder: Long? = when (reminderMode) {
-                        "1h" -> deadline - HOUR_MS
-                        "3h" -> deadline - 3 * HOUR_MS
-                        "1d" -> deadline - DAY_MS
-                        "manual" -> manualReminder
-                        else -> null
-                    }
+                    val times = quickSelected.map { deadline - it } + manualList
+                    val reminderText = times.toReminderString()
                     val base = existing
                     if (base == null) {
                         viewModel.addTask(
@@ -275,7 +339,7 @@ fun TaskFormScreen(
                                 teacher = teacher.trim(),
                                 notes = notes.trim(),
                                 deadline = deadline,
-                                reminderTime = reminder
+                                reminders = reminderText
                             )
                         )
                     } else {
@@ -283,6 +347,21 @@ fun TaskFormScreen(
                             base.copy(
                                 title = title.trim(),
                                 description = description.trim(),
+                                teacher = teacher.trim(),
+                                notes = notes.trim(),
+                                deadline = deadline,
+                                reminders = reminderText
+                            )
+                        )
+                    }
+                    onFinish()
+                },
+                enabled = title.isNotBlank(),
+                modifier = Modifier.weight(1f)
+            ) { Text("Simpan") }
+        }
+    }
+}                        description = description.trim(),
                                 teacher = teacher.trim(),
                                 notes = notes.trim(),
                                 deadline = deadline,
