@@ -16,6 +16,9 @@ import com.tudoo.app.R
 import com.tudoo.app.data.Task
 import com.tudoo.app.data.TudooDatabase
 import com.tudoo.app.data.reminderTimes
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -30,9 +33,14 @@ class ReminderReceiver : BroadcastReceiver() {
 
         val taskId = intent.getLongExtra(ReminderScheduler.EXTRA_TASK_ID, -1L)
         val time = intent.getLongExtra(ReminderScheduler.EXTRA_REMINDER_TIME, -1L)
-                if (taskId == -1L && time > 0) {
+        val appContext = context.applicationContext
+
+        ReminderDebug.record(appContext, "ALARM DITERIMA (tugas=$taskId)")
+
+        // Alarm tes dari halaman Settings (tanpa tugas di database).
+        if (taskId == -1L && time > 0) {
             ReminderNotifications.show(
-                context.applicationContext,
+                appContext,
                 Task(title = "Tes Dodo", deadline = time),
                 time
             )
@@ -40,7 +48,6 @@ class ReminderReceiver : BroadcastReceiver() {
         }
         if (taskId < 0 || time < 0) return
 
-        val appContext = context.applicationContext
         val pending = goAsync()
 
         CoroutineScope(Dispatchers.IO).launch {
@@ -53,11 +60,38 @@ class ReminderReceiver : BroadcastReceiver() {
                 // dan waktu pengingat ini memang masih terdaftar.
                 if (task != null && !task.isDone && time in task.reminderTimes()) {
                     ReminderNotifications.show(appContext, task, time)
+                } else {
+                    ReminderDebug.record(
+                        appContext,
+                        "alarm diterima tapi dilewati (tugas hilang/selesai/waktu tidak terdaftar)"
+                    )
                 }
             } finally {
                 pending.finish()
             }
         }
+    }
+}
+
+/**
+ * Catatan kecil untuk diagnosis: kapan alarm terakhir diterima dan hasilnya.
+ */
+object ReminderDebug {
+    private const val PREFS = "tudoo_debug"
+    private const val KEY = "last"
+
+    fun record(context: Context, text: String) {
+        val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY, "$time $text")
+            .apply()
+    }
+
+    fun read(context: Context): String {
+        val last = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY, null)
+        return "Catatan terakhir: " + (last ?: "belum ada alarm/notifikasi tercatat")
     }
 }
 
@@ -83,12 +117,33 @@ object ReminderNotifications {
         manager.createNotificationChannel(channel)
     }
 
-    fun show(context: Context, task: Task, reminderTime: Long) {
+    /** Mengembalikan teks hasil (untuk diagnosis) dan mencatatnya. */
+    fun show(context: Context, task: Task, reminderTime: Long): String {
+        val result = try {
+            buildAndNotify(context, task, reminderTime)
+        } catch (e: Exception) {
+            "GAGAL: ${e.javaClass.simpleName}: ${e.message}"
+        }
+        ReminderDebug.record(context, "hasil: $result")
+        return result
+    }
+
+    private fun buildAndNotify(context: Context, task: Task, reminderTime: Long): String {
         val manager = NotificationManagerCompat.from(context)
-        // Izin notifikasi (Android 13+) bisa saja belum diberikan.
-        if (!manager.areNotificationsEnabled()) return
+        if (!manager.areNotificationsEnabled()) {
+            return "NOTIFIKASI DIMATIKAN di pengaturan HP untuk Tudoo"
+        }
 
         ensureChannel(context)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE)
+                as NotificationManager
+            val channel = nm.getNotificationChannel(CHANNEL_ID)
+            if (channel != null && channel.importance == NotificationManager.IMPORTANCE_NONE) {
+                return "CHANNEL 'Pengingat tugas' DIMATIKAN di pengaturan HP"
+            }
+        }
 
         // ID unik per pengingat supaya tidak saling menimpa.
         val notificationId = "${task.id}-$reminderTime".hashCode()
@@ -109,8 +164,9 @@ object ReminderNotifications {
             "Tugas ${task.title} sudah mendekati deadline."
         }
 
-        val notification = NotificationCompat.Builder(context, ReminderNotifications.CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_dodo)
+            .setColor(0xFF839557.toInt())
             .setLargeIcon(decodeScaled(context, R.drawable.dodo_mengingatkan, 256))
             .setContentTitle("Waktunya mengerjakan tugas! \uD83D\uDC30")
             .setContentText(message)
@@ -121,11 +177,8 @@ object ReminderNotifications {
             .setAutoCancel(true)
             .build()
 
-        try {
-            manager.notify(notificationId, notification)
-        } catch (e: SecurityException) {
-            // Izin notifikasi dicabut: abaikan saja.
-        }
+        manager.notify(notificationId, notification)
+        return "TERKIRIM ke sistem Android"
     }
 
     /** Memuat gambar dengan ukuran dikecilkan supaya hemat memori. */
