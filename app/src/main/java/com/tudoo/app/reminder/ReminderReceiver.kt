@@ -30,6 +30,14 @@ class ReminderReceiver : BroadcastReceiver() {
 
         val taskId = intent.getLongExtra(ReminderScheduler.EXTRA_TASK_ID, -1L)
         val time = intent.getLongExtra(ReminderScheduler.EXTRA_REMINDER_TIME, -1L)
+                if (taskId == -1L && time > 0) {
+            ReminderNotifications.show(
+                context.applicationContext,
+                Task(title = "Tes Dodo", deadline = time),
+                time
+            )
+            return
+        }
         if (taskId < 0 || time < 0) return
 
         val appContext = context.applicationContext
