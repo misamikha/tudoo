@@ -4,11 +4,11 @@ import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Home
@@ -28,11 +28,14 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.tudoo.app.R
 
 private data class TabItem(
@@ -50,33 +53,37 @@ private val tabs = listOf(
 @Composable
 fun TudooApp() {
     val navController = rememberNavController()
+    val taskViewModel: TaskViewModel = viewModel()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+    val showBottomBar = tabs.any { it.route == currentRoute }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                tabs.forEach { tab ->
-                    NavigationBarItem(
-                        selected = currentRoute == tab.route,
-                        onClick = {
-                            navController.navigate(tab.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
+            if (showBottomBar) {
+                NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                    tabs.forEach { tab ->
+                        NavigationBarItem(
+                            selected = currentRoute == tab.route,
+                            onClick = {
+                                navController.navigate(tab.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = { Icon(tab.icon, contentDescription = tab.label) },
-                        label = { Text(tab.label) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = MaterialTheme.colorScheme.primary,
-                            selectedTextColor = MaterialTheme.colorScheme.primary,
-                            indicatorColor = MaterialTheme.colorScheme.secondaryContainer
+                            },
+                            icon = { Icon(tab.icon, contentDescription = tab.label) },
+                            label = { Text(tab.label) },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.primary,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                indicatorColor = MaterialTheme.colorScheme.secondaryContainer
+                            )
                         )
-                    )
+                    }
                 }
             }
         }
@@ -94,10 +101,10 @@ fun TudooApp() {
                 )
             }
             composable("tasks") {
-                DodoScreen(
-                    title = "Belum ada tugas",
-                    message = "Santai dulu ya. Tugasmu akan muncul di sini.",
-                    imageRes = R.drawable.dodo_tidur
+                TaskListScreen(
+                    viewModel = taskViewModel,
+                    onAdd = { navController.navigate("task_form/0") },
+                    onEdit = { id -> navController.navigate("task_form/$id") }
                 )
             }
             composable("settings") {
@@ -105,6 +112,17 @@ fun TudooApp() {
                     title = "Pengaturan",
                     message = "Pengaturan Tudoo akan ada di sini.",
                     imageRes = R.drawable.dodo_bangga
+                )
+            }
+            composable(
+                route = "task_form/{id}",
+                arguments = listOf(navArgument("id") { type = NavType.LongType })
+            ) { entry ->
+                val id = entry.arguments?.getLong("id") ?: 0L
+                TaskFormScreen(
+                    taskId = id,
+                    viewModel = taskViewModel,
+                    onFinish = { navController.popBackStack() }
                 )
             }
         }
