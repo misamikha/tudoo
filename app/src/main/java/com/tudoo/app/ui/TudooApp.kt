@@ -107,9 +107,9 @@ fun TudooApp() {
                     onEdit = { id -> navController.navigate("task_form/$id") }
                 )
             }
-             composable("settings") {
+                  composable("settings") {
                 SettingsScreen()
-            }       
+            }
             composable(
                 route = "task_form/{id}",
                 arguments = listOf(navArgument("id") { type = NavType.LongType })
