@@ -361,19 +361,4 @@ fun TaskFormScreen(
             ) { Text("Simpan") }
         }
     }
-}                        description = description.trim(),
-                                teacher = teacher.trim(),
-                                notes = notes.trim(),
-                                deadline = deadline,
-                                reminderTime = reminder
-                            )
-                        )
-                    }
-                    onFinish()
-                },
-                enabled = title.isNotBlank(),
-                modifier = Modifier.weight(1f)
-            ) { Text("Simpan") }
-        }
-    }
 }
