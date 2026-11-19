@@ -1,9 +1,14 @@
 package com.tudoo.app.ui
 
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Home
@@ -20,12 +25,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.tudoo.app.R
 
 private data class TabItem(
     val route: String,
@@ -79,34 +87,60 @@ fun TudooApp() {
             modifier = Modifier.padding(padding)
         ) {
             composable("home") {
-                PlaceholderScreen("Home", "Halo! Aku Dodo, siap menemanimu 🐰")
+                DodoScreen(
+                    title = "Halo! Aku Dodo",
+                    message = "Yuk, selesaikan tugasmu! Aku siap menemanimu.",
+                    imageRes = R.drawable.dodo_senang
+                )
             }
             composable("tasks") {
-                PlaceholderScreen("My Tasks", "Daftar tugasmu akan muncul di sini")
+                DodoScreen(
+                    title = "Belum ada tugas",
+                    message = "Santai dulu ya. Tugasmu akan muncul di sini.",
+                    imageRes = R.drawable.dodo_tidur
+                )
             }
             composable("settings") {
-                PlaceholderScreen("Settings", "Pengaturan Tudoo akan ada di sini")
+                DodoScreen(
+                    title = "Pengaturan",
+                    message = "Pengaturan Tudoo akan ada di sini.",
+                    imageRes = R.drawable.dodo_bangga
+                )
             }
         }
     }
 }
 
 @Composable
-private fun PlaceholderScreen(title: String, subtitle: String) {
+private fun DodoScreen(
+    title: String,
+    message: String,
+    @DrawableRes imageRes: Int
+) {
     Column(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        Image(
+            painter = painterResource(id = imageRes),
+            contentDescription = "Dodo",
+            modifier = Modifier.size(180.dp)
+        )
+        Spacer(modifier = Modifier.height(16.dp))
         Text(
             text = title,
             style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.primary
+            color = MaterialTheme.colorScheme.primary,
+            textAlign = TextAlign.Center
         )
         Text(
-            text = subtitle,
+            text = message,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onBackground,
+            textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 8.dp)
         )
     }
