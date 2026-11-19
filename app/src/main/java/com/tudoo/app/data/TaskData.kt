@@ -21,10 +21,19 @@ data class Task(
     val teacher: String = "",
     val notes: String = "",
     val deadline: Long,
+    // Tidak dipakai lagi, digantikan oleh "reminders".
     val reminderTime: Long? = null,
+    // Daftar waktu pengingat (milidetik), dipisah koma.
+    val reminders: String = "",
     val isDone: Boolean = false,
     val createdAt: Long = System.currentTimeMillis()
 )
+
+fun Task.reminderTimes(): List<Long> =
+    reminders.split(",").mapNotNull { it.trim().toLongOrNull() }.sorted()
+
+fun List<Long>.toReminderString(): String =
+    distinct().sorted().joinToString(",")
 
 @Dao
 interface TaskDao {
@@ -34,7 +43,7 @@ interface TaskDao {
     @Query("SELECT * FROM tasks WHERE id = :id")
     suspend fun getTaskById(id: Long): Task?
 
-    @Query("SELECT * FROM tasks WHERE isDone = 0 AND reminderTime IS NOT NULL")
+    @Query("SELECT * FROM tasks WHERE isDone = 0 AND reminders != ''")
     suspend fun getTasksWithPendingReminder(): List<Task>
 
     @Insert
@@ -47,7 +56,7 @@ interface TaskDao {
     suspend fun delete(task: Task)
 }
 
-@Database(entities = [Task::class], version = 1, exportSchema = false)
+@Database(entities = [Task::class], version = 2, exportSchema = false)
 abstract class TudooDatabase : RoomDatabase() {
     abstract fun taskDao(): TaskDao
 
@@ -61,7 +70,10 @@ abstract class TudooDatabase : RoomDatabase() {
                     context.applicationContext,
                     TudooDatabase::class.java,
                     "tudoo.db"
-                ).build().also { instance = it }
+                )
+                    .fallbackToDestructiveMigration()
+                    .build()
+                    .also { instance = it }
             }
         }
     }
